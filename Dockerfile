@@ -105,7 +105,7 @@ RUN apt-get update -qq \
 ARG DESTDIR=/tmp/iverilog
 RUN git clone --recursive https://github.com/steveicarus/iverilog.git
 WORKDIR iverilog
-RUN sh autoconf.sh && ./configure && make && make install
+RUN sh autoconf.sh && ./configure && make -j$(nproc) && make install
 WORKDIR /
 
 
