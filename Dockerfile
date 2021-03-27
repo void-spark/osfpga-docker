@@ -4,7 +4,7 @@ RUN apt-get update -qq \
 && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
     ca-certificates \    
     git \
-	graphviz \
+    graphviz \
 # nextpnr/yosys use boost, non-dev can only be added by specific version number
     libboost-dev \
     libboost-filesystem-dev \
@@ -13,9 +13,10 @@ RUN apt-get update -qq \
     libboost-python-dev \
     libboost-system-dev \
     libboost-thread-dev \
-	libreadline8 \
+    libreadline8 \
     libffi7 \
     libftdi1 \
+    make \
     python3 \
     qt5-default \
     tcl \
