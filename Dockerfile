@@ -29,7 +29,10 @@ RUN apt-get update -qq \
 FROM base AS build_base
 RUN apt-get update -qq \
 && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
+    autoconf \
+    bison \
     build-essential \
+    flex \
     pkg-config \
 && rm -rf /var/lib/apt/lists/*
 
@@ -40,20 +43,9 @@ RUN apt-get update -qq \
 && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
     libftdi-dev \
 && rm -rf /var/lib/apt/lists/*
-ARG DESTDIR=/tmp/icestorm
 RUN git clone --recursive https://github.com/YosysHQ/icestorm.git
 WORKDIR icestorm
-RUN make -j$(nproc) && make install
-WORKDIR /
-
-
-# Build Arachne-pnr
-FROM build_base AS build_arachne-pnr
-COPY --from=build_icestorm /tmp/icestorm/ /
-ARG DESTDIR=/tmp/arachne-pnr
-RUN git clone --recursive https://github.com/YosysHQ/arachne-pnr.git
-WORKDIR arachne-pnr
-RUN make -j$(nproc) && make install
+RUN make -j$(nproc) && make DESTDIR=/tmp/icestorm install
 WORKDIR /
 
 
@@ -67,30 +59,39 @@ RUN apt-get update -qq \
     python3-dev \
 && rm -rf /var/lib/apt/lists/*
 COPY --from=build_icestorm /tmp/icestorm/ /
-ARG DESTDIR=/tmp/nextpnr
 RUN git clone --recursive https://github.com/YosysHQ/nextpnr.git
 WORKDIR nextpnr
-RUN cmake -DARCH=ice40 -DCMAKE_INSTALL_PREFIX=/usr/local . && make -j$(nproc) && make install
+RUN cmake -DARCH=ice40 -DCMAKE_INSTALL_PREFIX=/usr/local . && make -j$(nproc) && make DESTDIR=/tmp/nextpnr install
 WORKDIR /
 
 
-# Build yosys
+# Build Yosys
 FROM build_base AS build_yosys
 RUN apt-get update -qq \
 && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
-    bison \
     clang \
-    flex \
     gawk \
     libreadline-dev \
     libffi-dev \
     tcl-dev \
     zlib1g-dev \    
 && rm -rf /var/lib/apt/lists/*
-ARG DESTDIR=/tmp/yosys
 RUN git clone --recursive https://github.com/YosysHQ/yosys.git
 WORKDIR yosys
-RUN make -j$(nproc) && make install
+RUN make -j$(nproc) && make DESTDIR=/tmp/yosys install
+WORKDIR /
+
+
+# Build Verilator
+FROM build_base AS build_verilator
+RUN apt-get update -qq \
+&& DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
+    libfl2 \
+    libfl-dev \
+&& rm -rf /var/lib/apt/lists/*
+RUN git clone --recursive https://github.com/verilator/verilator.git
+WORKDIR verilator
+RUN autoconf && ./configure && make -j$(nproc) && make DESTDIR=/tmp/verilator install
 WORKDIR /
 
 
@@ -98,28 +99,24 @@ WORKDIR /
 FROM build_base AS build_iverilog
 RUN apt-get update -qq \
 && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
-    autoconf \
-    bison \
-    flex \
     gperf \
 && rm -rf /var/lib/apt/lists/*
-ARG DESTDIR=/tmp/iverilog
 RUN git clone --recursive https://github.com/steveicarus/iverilog.git
 WORKDIR iverilog
-RUN sh autoconf.sh && ./configure && make -j$(nproc) && make install
+RUN sh autoconf.sh && ./configure && make -j$(nproc) && make DESTDIR=/tmp/iverilog install
 WORKDIR /
 
 
 # Avengers assemble!
 FROM base
-COPY --from=build_icestorm /tmp/icestorm/ /
-COPY --from=build_arachne-pnr /tmp/arachne-pnr/ /
-COPY --from=build_nextpnr /tmp/nextpnr/ /
-COPY --from=build_yosys /tmp/yosys/ /
 RUN apt-get update -qq \
 && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -q \
     gtkwave \
 && rm -rf /var/lib/apt/lists/*
+COPY --from=build_icestorm /tmp/icestorm/ /
+COPY --from=build_nextpnr /tmp/nextpnr/ /
+COPY --from=build_yosys /tmp/yosys/ /
+COPY --from=build_verilator /tmp/verilator /
 COPY --from=build_iverilog /tmp/iverilog /
 
 CMD [ "/bin/bash" ]
